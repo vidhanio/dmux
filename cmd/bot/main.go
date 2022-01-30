@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -24,54 +23,18 @@ func main() {
 
 	mux := dmux.NewMux(os.Getenv("DISCORD_TOKEN"))
 
-	mux.HandleFunc("/math add num1:integer num2:integer", func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		num1 := int(dmux.Option(i, "num1").IntValue())
+	mux.HandleFunc("/hi happy:string<happy,sad>", func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		happy := dmux.Option(i, "happy").StringValue()
 
-		num2 := int(dmux.Option(i, "num2").IntValue())
-
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: strconv.Itoa(num1 + num2),
-			},
-		})
-	})
-
-	mux.HandleFunc("/math multiply num1:integer num2:integer", func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		num1 := int(dmux.Option(i, "num1").IntValue())
-
-		num2 := int(dmux.Option(i, "num2").IntValue())
+		happyString := "How can I help you?"
+		if happy == "happy" {
+			happyString = "Good to hear!"
+		}
 
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: strconv.Itoa(num1 * num2),
-			},
-		})
-	})
-
-	mux.HandleFunc("/math subtract num1:integer num2:integer", func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		num1 := int(dmux.Option(i, "num1").IntValue())
-
-		num2 := int(dmux.Option(i, "num2").IntValue())
-
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: strconv.Itoa(num1 - num2),
-			},
-		})
-	})
-
-	mux.HandleFunc("/math divide num1:integer num2:integer", func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		num1 := int(dmux.Option(i, "num1").IntValue())
-
-		num2 := int(dmux.Option(i, "num2").IntValue())
-
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: strconv.Itoa(num1 / num2),
+				Content: happyString,
 			},
 		})
 	})

@@ -2,6 +2,7 @@ package dmux
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -41,39 +42,21 @@ func contains[T comparable](s []T, e T) bool {
 type optionInfo struct {
 	name       string
 	optionType discordgo.ApplicationCommandOptionType
+	choices    map[string]any
 	required   bool
 }
 
-func parseOption(option string) optionInfo {
-	required := true
-	if option[0] == '[' && option[len(option)-1] == ']' {
-		required = false
-		option = option[1 : len(option)-1]
+func choicesFromMap(choices map[string]any) []*discordgo.ApplicationCommandOptionChoice {
+	choicesSlice := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(choices))
+
+	for key, value := range choices {
+		choicesSlice = append(choicesSlice, &discordgo.ApplicationCommandOptionChoice{
+			Name:  key,
+			Value: value,
+		})
 	}
 
-	parts := strings.SplitN(option, ":", 2)
-	if len(parts) == 1 {
-		panic("dmux: invalid option: " + option)
-	}
-
-	optionType, ok := reverseTypeMap[parts[1]]
-	if !ok {
-		panic("dmux: invalid option type: " + parts[1])
-	}
-
-	if !nameRe.MatchString(parts[0]) {
-		panic("dmux: invalid option name: " + parts[0])
-	}
-
-	return optionInfo{
-		name:       parts[0],
-		optionType: optionType,
-		required:   required,
-	}
-}
-
-func normalize(pattern string) string {
-	return strings.Join(strings.Fields(pattern), " ")
+	return choicesSlice
 }
 
 func parsePattern(pattern string) (string, []string, []optionInfo) {
@@ -112,6 +95,72 @@ func parsePattern(pattern string) (string, []string, []optionInfo) {
 	return command, subcmds, options
 }
 
+func parseOption(option string) optionInfo {
+	required := true
+
+	parts := strings.SplitN(option, ":", 2)
+	if len(parts) == 1 {
+		panic("dmux: invalid option: " + option)
+	}
+
+	if parts[0][len(parts[0])-1] == '?' {
+		required = false
+		parts[0] = parts[0][:len(parts[0])-1]
+	}
+
+	choices := map[string]any{}
+
+	typeParts := strings.SplitN(parts[1], "<", 2)
+
+	optionType, ok := reverseTypeMap[typeParts[0]]
+	if !ok {
+		panic("dmux: invalid option type: " + parts[1])
+	}
+
+	if len(typeParts) == 2 {
+		choiceString := typeParts[1]
+		choiceString = choiceString[:len(choiceString)-1]
+
+		for _, choice := range strings.Split(choiceString, ",") {
+			choiceParts := strings.SplitN(choice, "=", 2)
+			if len(choiceParts) == 1 {
+				choices[choiceParts[0]] = choiceParts[0]
+			} else {
+				switch optionType {
+				case discordgo.ApplicationCommandOptionString:
+					choices[choiceParts[0]] = choiceParts[1]
+				case discordgo.ApplicationCommandOptionInteger:
+					i, err := strconv.Atoi(choiceParts[1])
+					if err != nil {
+						panic("dmux: invalid integer choice: " + choice)
+					}
+
+					choices[choiceParts[0]] = i
+				default:
+					panic("dmux: cannot use choices with type " + typeMap[optionType])
+				}
+			}
+		}
+	}
+
+	parts[1] = typeParts[0]
+
+	if !nameRe.MatchString(parts[0]) {
+		panic("dmux: invalid option name: " + parts[0])
+	}
+
+	return optionInfo{
+		name:       parts[0],
+		optionType: optionType,
+		choices:    choices,
+		required:   required,
+	}
+}
+
+func normalize(pattern string) string {
+	return strings.Join(strings.Fields(pattern), " ")
+}
+
 func patternWithoutOptions(pattern string) string {
 	command, subcmds, _ := parsePattern(pattern)
 
@@ -147,6 +196,7 @@ func (m *Mux) commandFromPattern(pattern string) {
 					Description: option.name,
 					Type:        option.optionType,
 					Required:    option.required,
+					Choices:     choicesFromMap(option.choices),
 				},
 			)
 		}
@@ -180,6 +230,7 @@ func (m *Mux) commandFromPattern(pattern string) {
 					Description: option.name,
 					Type:        option.optionType,
 					Required:    option.required,
+					Choices:     choicesFromMap(option.choices),
 				},
 			)
 		}
@@ -233,6 +284,7 @@ func (m *Mux) commandFromPattern(pattern string) {
 					Description: option.name,
 					Type:        option.optionType,
 					Required:    option.required,
+					Choices:     choicesFromMap(option.choices),
 				},
 			)
 		}
