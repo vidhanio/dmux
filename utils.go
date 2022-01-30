@@ -19,7 +19,7 @@ func optionsSlice(i *discordgo.InteractionCreate) []*discordgo.ApplicationComman
 	}
 }
 
-func CommandOption(i *discordgo.InteractionCreate, name string) *discordgo.ApplicationCommandInteractionDataOption {
+func Option(i *discordgo.InteractionCreate, name string) *discordgo.ApplicationCommandInteractionDataOption {
 	for _, option := range optionsSlice(i) {
 		if option.Name == name {
 			return option
