@@ -21,7 +21,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Error loading .env file")
 	}
 
-	mux := dmux.NewMux(os.Getenv("DISCORD_TOKEN"))
+	mux := dmux.NewMux(os.Getenv("DISCORD_TOKEN"), os.Getenv("DISCORD_GUILD_ID"))
 
 	mux.HandleFunc("/hi happy:string<happy,sad>", func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		happy := dmux.Option(i, "happy").StringValue()

@@ -2,16 +2,9 @@ package dmux
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/bwmarrin/discordgo"
 )
-
-type route struct {
-	cmd     *discordgo.ApplicationCommand
-	handler Handler
-	routes  map[string]route
-}
 
 type Mux struct {
 	session     *discordgo.Session
@@ -19,9 +12,11 @@ type Mux struct {
 
 	commands map[string]*discordgo.ApplicationCommand
 	handlers map[string]Handler
+
+	guildID string
 }
 
-func NewMux(token string) *Mux {
+func NewMux(token string, guildID string) *Mux {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
 		panic(fmt.Errorf("dmux: %w", err))
@@ -32,6 +27,7 @@ func NewMux(token string) *Mux {
 		middlewares: []func(Handler) Handler{},
 		handlers:    make(map[string]Handler),
 		commands:    make(map[string]*discordgo.ApplicationCommand),
+		guildID:     guildID,
 	}
 }
 
@@ -51,7 +47,7 @@ func (m *Mux) Serve() error {
 	for _, cmd := range m.commands {
 		cmds = append(cmds, cmd)
 	}
-	_, err = m.session.ApplicationCommandBulkOverwrite(m.session.State.User.ID, os.Getenv("DISCORD_GUILD_ID"), cmds)
+	_, err = m.session.ApplicationCommandBulkOverwrite(m.session.State.User.ID, m.guildID, cmds)
 
 	return err
 }
