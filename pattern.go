@@ -38,7 +38,13 @@ func contains[T comparable](s []T, e T) bool {
 	return false
 }
 
-func parseOption(option string) (string, discordgo.ApplicationCommandOptionType, bool) {
+type optionInfo struct {
+	name       string
+	optionType discordgo.ApplicationCommandOptionType
+	required   bool
+}
+
+func parseOption(option string) optionInfo {
 	required := true
 	if option[0] == '[' && option[len(option)-1] == ']' {
 		required = false
@@ -59,54 +65,39 @@ func parseOption(option string) (string, discordgo.ApplicationCommandOptionType,
 		panic("dmux: invalid option name: " + parts[0])
 	}
 
-	return parts[0], optionType, required
+	return optionInfo{
+		name:       parts[0],
+		optionType: optionType,
+		required:   required,
+	}
 }
 
 func normalize(pattern string) string {
 	return strings.Join(strings.Fields(pattern), " ")
 }
 
-func (m *Mux) commandFromPattern(pattern string) {
+func parsePattern(pattern string) (string, []string, []optionInfo) {
 	pattern = normalize(pattern)
 
 	parts := strings.Fields(pattern)
 
-	if len(parts) == 0 || parts[0][0] != '/' {
+	if len(parts) == 0 {
+		panic("dmux: pattern must not be empty")
+	}
+
+	if parts[0][0] != '/' {
 		panic("dmux: pattern must start with '/'")
 	}
 
-	parentName := parts[0][1:]
-
-	parent, ok := m.commands[parentName]
-	if ok && len(parts) == 1 {
-		panic("dmux: pattern already exists")
-	}
-
-	if !ok {
-		parent = &discordgo.ApplicationCommand{
-			Name:        parentName,
-			Description: parentName,
-			Type:        discordgo.ChatApplicationCommand,
-		}
-
-		m.commands[parentName] = parent
-	}
-
+	command := parts[0][1:]
 	subcmds := []string{}
-
-	optionNames := []string{}
-	optionTypes := []discordgo.ApplicationCommandOptionType{}
-	optionRequires := []bool{}
+	options := []optionInfo{}
 
 	for _, part := range parts[1:] {
 		if contains([]rune(part), ':') {
-			name, optionType, required := parseOption(part)
-
-			optionNames = append(optionNames, name)
-			optionTypes = append(optionTypes, optionType)
-			optionRequires = append(optionRequires, required)
+			options = append(options, parseOption(part))
 		} else {
-			if len(optionNames) != 0 {
+			if len(options) != 0 {
 				panic("dmux: options must be the last part of the pattern")
 			}
 
@@ -118,17 +109,45 @@ func (m *Mux) commandFromPattern(pattern string) {
 		}
 	}
 
+	return command, subcmds, options
+}
+
+func patternWithoutOptions(pattern string) string {
+	command, subcmds, _ := parsePattern(pattern)
+	subcmdString := strings.Join(subcmds, " ")
+
+	return "/" + command + " " + subcmdString
+}
+
+func (m *Mux) commandFromPattern(pattern string) {
+	command, subcmds, options := parsePattern(pattern)
+
+	parent, ok := m.commands[command]
+	if ok && len(subcmds) == 0 {
+		panic("dmux: pattern already exists")
+	}
+
+	if !ok {
+		parent = &discordgo.ApplicationCommand{
+			Name:        command,
+			Description: command,
+			Type:        discordgo.ChatApplicationCommand,
+		}
+
+		m.commands[command] = parent
+	}
+
 	switch len(subcmds) {
 	case 0:
 		parent.Options = []*discordgo.ApplicationCommandOption{}
 
-		for i, name := range optionNames {
+		for _, option := range options {
 			parent.Options = append(parent.Options,
 				&discordgo.ApplicationCommandOption{
-					Name:        name,
-					Description: name,
-					Type:        optionTypes[i],
-					Required:    optionRequires[i],
+					Name:        option.name,
+					Description: option.name,
+					Type:        option.optionType,
+					Required:    option.required,
 				},
 			)
 		}
@@ -155,13 +174,13 @@ func (m *Mux) commandFromPattern(pattern string) {
 
 		subcmd.Options = []*discordgo.ApplicationCommandOption{}
 
-		for i, name := range optionNames {
+		for _, option := range options {
 			subcmd.Options = append(subcmd.Options,
 				&discordgo.ApplicationCommandOption{
-					Name:        name,
-					Description: name,
-					Type:        optionTypes[i],
-					Required:    optionRequires[i],
+					Name:        option.name,
+					Description: option.name,
+					Type:        option.optionType,
+					Required:    option.required,
 				},
 			)
 		}
@@ -208,13 +227,13 @@ func (m *Mux) commandFromPattern(pattern string) {
 
 		subcmd.Options = []*discordgo.ApplicationCommandOption{}
 
-		for i, name := range optionNames {
+		for _, option := range options {
 			subcmd.Options = append(subcmd.Options,
 				&discordgo.ApplicationCommandOption{
-					Name:        name,
-					Description: name,
-					Type:        optionTypes[i],
-					Required:    optionRequires[i],
+					Name:        option.name,
+					Description: option.name,
+					Type:        option.optionType,
+					Required:    option.required,
 				},
 			)
 		}
@@ -230,34 +249,20 @@ func interactionToPattern(data discordgo.ApplicationCommandInteractionData) stri
 	builder.WriteString(data.Name)
 	builder.WriteRune(' ')
 
-	for _, option := range data.Options {
-		builder.WriteString(option.Name)
-		if option.Type != discordgo.ApplicationCommandOptionSubCommand && option.Type != discordgo.ApplicationCommandOptionSubCommandGroup {
-			builder.WriteRune(':')
-			builder.WriteString(typeMap[option.Type])
-		}
+	if len(data.Options) == 0 {
+		return normalize(builder.String())
+	}
+
+	switch data.Options[0].Type {
+	case discordgo.ApplicationCommandOptionSubCommandGroup:
+		builder.WriteString(data.Options[0].Name)
 		builder.WriteRune(' ')
 
-		if option.Type == discordgo.ApplicationCommandOptionSubCommandGroup {
-			builder.WriteString(option.Options[0].Name)
-			builder.WriteRune(' ')
-
-			for _, suboption := range option.Options[0].Options {
-				builder.WriteString(suboption.Name)
-				builder.WriteRune(':')
-				builder.WriteString(typeMap[suboption.Type])
-				builder.WriteRune(' ')
-			}
-		}
-
-		if option.Type == discordgo.ApplicationCommandOptionSubCommand {
-			for _, suboption := range option.Options {
-				builder.WriteString(suboption.Name)
-				builder.WriteRune(':')
-				builder.WriteString(typeMap[suboption.Type])
-				builder.WriteRune(' ')
-			}
-		}
+		builder.WriteString(data.Options[0].Options[0].Name)
+		builder.WriteRune(' ')
+	case discordgo.ApplicationCommandOptionSubCommand:
+		builder.WriteString(data.Options[0].Name)
+		builder.WriteRune(' ')
 	}
 
 	return normalize(builder.String())

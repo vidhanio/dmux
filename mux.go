@@ -62,7 +62,7 @@ func (m *Mux) Handle(pattern string, handler Handler) {
 
 	m.commandFromPattern(pattern)
 
-	m.handlers[normalize(pattern)] = handler
+	m.handlers[patternWithoutOptions(pattern)] = handler
 }
 
 func (m *Mux) HandleFunc(pattern string, handler func(*discordgo.Session, *discordgo.InteractionCreate)) {
@@ -71,39 +71,4 @@ func (m *Mux) HandleFunc(pattern string, handler func(*discordgo.Session, *disco
 
 func (m *Mux) Use(middlewares ...func(Handler) Handler) {
 	m.middlewares = append(m.middlewares, middlewares...)
-}
-
-func (m *Mux) chain(handler Handler) Handler {
-	for i := len(m.middlewares) - 1; i >= 0; i-- {
-		handler = m.middlewares[i](handler)
-	}
-
-	return handler
-}
-
-func optionsSlice(i *discordgo.InteractionCreate) []*discordgo.ApplicationCommandInteractionDataOption {
-	data := i.ApplicationCommandData()
-
-	if len(data.Options) == 0 {
-		return nil
-	}
-
-	switch data.Options[0].Type {
-	case discordgo.ApplicationCommandOptionSubCommandGroup:
-		return data.Options[0].Options[0].Options
-	case discordgo.ApplicationCommandOptionSubCommand:
-		return data.Options[0].Options
-	default:
-		return data.Options
-	}
-}
-
-func CommandOption(i *discordgo.InteractionCreate, name string) *discordgo.ApplicationCommandInteractionDataOption {
-	for _, option := range optionsSlice(i) {
-		if option.Name == name {
-			return option
-		}
-	}
-
-	return nil
 }
