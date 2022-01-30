@@ -114,9 +114,8 @@ func parsePattern(pattern string) (string, []string, []optionInfo) {
 
 func patternWithoutOptions(pattern string) string {
 	command, subcmds, _ := parsePattern(pattern)
-	subcmdString := strings.Join(subcmds, " ")
 
-	return "/" + command + " " + subcmdString
+	return normalize("/" + command + " " + strings.Join(subcmds, " "))
 }
 
 func (m *Mux) commandFromPattern(pattern string) {

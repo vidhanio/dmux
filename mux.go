@@ -55,6 +55,10 @@ func (m *Mux) Serve() error {
 	return err
 }
 
+func (m *Mux) Close() error {
+	return m.session.Close()
+}
+
 func (m *Mux) Handle(pattern string, handler Handler) {
 	if m.handlers == nil {
 		panic("dmux: mux not initialized")
