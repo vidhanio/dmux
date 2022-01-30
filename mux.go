@@ -2,6 +2,7 @@ package dmux
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -50,7 +51,7 @@ func (m *Mux) Serve() error {
 	for _, cmd := range m.commands {
 		cmds = append(cmds, cmd)
 	}
-	_, err = m.session.ApplicationCommandBulkOverwrite(m.session.State.User.ID, "915247482722730014", cmds)
+	_, err = m.session.ApplicationCommandBulkOverwrite(m.session.State.User.ID, os.Getenv("DISCORD_GUILD_ID"), cmds)
 
 	return err
 }
