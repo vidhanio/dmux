@@ -20,7 +20,7 @@ Turn
 into
 
 ```go
-"/ping text:string"
+"/echo text:string"
 ```
 
 'nuff said.
