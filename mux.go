@@ -32,7 +32,12 @@ func NewMux(token string, guildID string) *Mux {
 }
 
 func (m *Mux) HandleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	m.chain(m.handlers[interactionToPattern(i.ApplicationCommandData())]).HandleInteraction(s, i)
+	handler := m.handlers[interactionToPattern(i.ApplicationCommandData())]
+	if handler == nil {
+		return
+	}
+
+	m.chain(handler).HandleInteraction(s, i)
 }
 
 func (m *Mux) Serve() error {
